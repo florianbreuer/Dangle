@@ -84,7 +84,7 @@ describe('TreeView', () => {
     )
     const svg = container.querySelector('svg')!
     expect(svg).toHaveAttribute('width', '800')
-    expect(svg).toHaveAttribute('height', '360')
+    expect(svg).toHaveAttribute('height', '420')
   })
 
   it('renders lines connecting parent to children', () => {

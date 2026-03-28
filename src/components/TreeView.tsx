@@ -11,7 +11,7 @@ interface TreeViewProps {
 const OFFSET_X = 400
 const OFFSET_Y = 60
 const SVG_WIDTH = 800
-const SVG_HEIGHT = 360
+const SVG_HEIGHT = 420
 
 export function TreeView({ tree, selectedNode, evaluatedNode, onNodeClick }: TreeViewProps) {
   const layoutNodes = layoutTree(tree)
