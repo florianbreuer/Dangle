@@ -130,6 +130,7 @@ export default function App() {
   const [highlightValue, setHighlightValue] = useState<string | null>(null)
   const [completedPuzzles, setCompletedPuzzles] = useState<Set<number>>(new Set())
   const [evaluatedNode, setEvaluatedNode] = useState<MathNode | null>(null)
+  const [showComplete, setShowComplete] = useState(false)
 
   const isDone = tree.type === 'ConstantNode'
   const infix = treeToInfix(tree)
@@ -183,13 +184,31 @@ export default function App() {
   }
 
   function handleNext() {
-    const nextIndex = (puzzleIndex + 1) % PUZZLES.length
-    setCompletedPuzzles((prev) => new Set(prev).add(puzzleIndex))
+    const updated = new Set(completedPuzzles).add(puzzleIndex)
+    setCompletedPuzzles(updated)
+    if (puzzleIndex === PUZZLES.length - 1) {
+      setShowComplete(true)
+      return
+    }
+    const nextIndex = puzzleIndex + 1
     setPuzzleIndex(nextIndex)
     setTree(parseExpression(PUZZLES[nextIndex].expression))
     setSelectedNode(null)
     setTooltipMsg(null)
     setHighlightValue(null)
+  }
+
+  function handlePlayAgain() {
+    setPuzzleIndex(0)
+    setTree(parseExpression(PUZZLES[0].expression))
+    setSelectedNode(null)
+    setTooltipMsg(null)
+    setHighlightValue(null)
+    setCompletedPuzzles(new Set())
+    setEvaluatedNode(null)
+    setShowComplete(false)
+    setHintVisible(true)
+    setHintOpacity(1)
   }
 
   // Clear tooltip when clicking elsewhere
@@ -199,6 +218,67 @@ export default function App() {
       return () => clearTimeout(timer)
     }
   }, [tooltipMsg])
+
+  if (showComplete) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          background: '#f9fafb',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 16px',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+        <h1 style={{ fontSize: 32, fontWeight: 700, color: '#111', margin: '0 0 8px' }}>
+          You did it!
+        </h1>
+        <p style={{ fontSize: 18, color: '#6b7280', margin: '0 0 32px', textAlign: 'center' }}>
+          All 5 puzzles solved. You're an algebra whiz!
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 40 }}>
+          {Array.from({ length: PUZZLES.length }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                background: '#2563eb',
+                border: '1.5px solid #2563eb',
+              }}
+            />
+          ))}
+        </div>
+        <button
+          onClick={handlePlayAgain}
+          style={{
+            padding: '10px 28px',
+            fontSize: 16,
+            fontWeight: 600,
+            fontFamily: 'system-ui, sans-serif',
+            background: '#2563eb',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+          onMouseEnter={(e) => {
+            ;(e.target as HTMLButtonElement).style.background = '#1d4ed8'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.target as HTMLButtonElement).style.background = '#2563eb'
+          }}
+        >
+          Play again
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div

@@ -99,7 +99,7 @@ describe('App integration', () => {
     expect(infixDisplay.textContent).toContain('5')
   })
 
-  it('loops back to puzzle 1 after completing all 5 puzzles', () => {
+  it('advances to puzzle 3 after completing puzzle 2', () => {
     const { container } = render(<App />)
 
     // Complete puzzle 1: 2+3
@@ -107,18 +107,126 @@ describe('App integration', () => {
     fireEvent.click(screen.getByText('Apply'))
     fireEvent.click(screen.getByText(/Done/))
 
-    // Now on puzzle 2: 3*(2+4). Click inner + first (2nd circle), then Apply, then * (1st circle), then Apply.
+    // Puzzle 2: 3*(2+4). Click inner + (index 1), Apply, then * (index 0), Apply.
     let circles = container.querySelectorAll('circle')
-    // Click the inner + (index 1 in layout)
     fireEvent.click(circles[1])
     fireEvent.click(screen.getByText('Apply'))
-    // Now click root *
     circles = container.querySelectorAll('circle')
     fireEvent.click(circles[0])
     fireEvent.click(screen.getByText('Apply'))
     fireEvent.click(screen.getByText(/Done/))
 
-    // Puzzle 3, 4, 5 are more complex — just verify we're on puzzle 3
     expect(screen.getByText('Puzzle 3 of 5')).toBeInTheDocument()
+  })
+
+  it('shows completion screen after the last puzzle is done', () => {
+    const { container } = render(<App />)
+
+    // Complete puzzle 1: 2+3 → 5
+    fireEvent.click(container.querySelector('circle')!)
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    // Complete puzzle 2: 3*(2+4). Inner + first, then *.
+    let circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0])
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    // Complete puzzle 3: (1+2)*(3+4). Two inner +s, then *.
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1]) // left +
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1]) // right +
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0]) // *
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    // Complete puzzle 4: (2+3)*4-1. + first, then *, then -.
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[2]) // inner +
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1]) // ×
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0]) // -
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    // Complete puzzle 5: (2+3)*(4-1). + first, then -, then *.
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1]) // left +
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1]) // right -
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0]) // *
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    // Should now see completion screen
+    expect(screen.getByText('You did it!')).toBeInTheDocument()
+    expect(screen.getByText('Play again')).toBeInTheDocument()
+  })
+
+  it('resets to puzzle 1 when Play again is clicked on completion screen', () => {
+    const { container } = render(<App />)
+
+    // Complete all 5 puzzles (same as above)
+    fireEvent.click(container.querySelector('circle')!)
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    let circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0])
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0])
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[2])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0])
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[1])
+    fireEvent.click(screen.getByText('Apply'))
+    circles = container.querySelectorAll('circle')
+    fireEvent.click(circles[0])
+    fireEvent.click(screen.getByText('Apply'))
+    fireEvent.click(screen.getByText(/Done/))
+
+    fireEvent.click(screen.getByText('Play again'))
+    expect(screen.getByText('Puzzle 1 of 5')).toBeInTheDocument()
   })
 })
