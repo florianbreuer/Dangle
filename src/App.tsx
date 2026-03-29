@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
-import type { MathNode, OperatorNode, ConstantNode } from 'mathjs'
+import { useState, useEffect, useCallback } from 'react'
+import type { GameNode, GameOperator, ColoredSegment } from './lib/treeOps'
 import { TreeView } from './components/TreeView'
 import {
   parseExpression,
-  canEvaluate,
-  evaluateArithmetic,
-  applyNode,
-  treeToInfix,
+  mathToGameTree,
+  treeToColoredInfix,
+  getApplicableRule,
+  findAnyApplicableNode,
+  findAllApplicableNodes,
 } from './lib/treeOps'
 import { PUZZLES } from './puzzles'
 
@@ -45,53 +46,43 @@ function ProgressDots({
 }
 
 // ---------------------------------------------------------------------------
-// Infix display with optional yellow flash on the changed token
+// Color-coded infix display
 // ---------------------------------------------------------------------------
-function InfixDisplay({
-  infix,
-  highlight,
+function ColoredInfixDisplay({
+  segments,
+  highlightValue,
 }: {
-  infix: string
-  highlight: string | null
+  segments: ColoredSegment[]
+  highlightValue: string | null
 }) {
-  if (!highlight) {
-    return (
-      <p
-        style={{
-          fontSize: 22,
-          fontFamily: 'system-ui, sans-serif',
-          color: '#111',
-          margin: 0,
-          textAlign: 'center',
-          letterSpacing: '0.02em',
-        }}
-      >
-        {infix}
-      </p>
-    )
-  }
+  // If there's a highlight (recently evaluated value), find and mark it
+  const fullText = segments.map((s) => s.text).join('')
 
-  const idx = infix.indexOf(highlight)
-  if (idx === -1) {
-    return (
-      <p
-        style={{
-          fontSize: 22,
-          fontFamily: 'system-ui, sans-serif',
-          color: '#111',
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        {infix}
-      </p>
-    )
+  if (highlightValue) {
+    const idx = fullText.indexOf(highlightValue)
+    if (idx !== -1) {
+      // Render with yellow highlight on the matching portion
+      return (
+        <p
+          style={{
+            fontSize: 24,
+            fontFamily: 'system-ui, sans-serif',
+            color: '#111',
+            margin: 0,
+            textAlign: 'center',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {renderSegmentsWithHighlight(segments, highlightValue)}
+        </p>
+      )
+    }
   }
 
   return (
     <p
       style={{
-        fontSize: 22,
+        fontSize: 24,
         fontFamily: 'system-ui, sans-serif',
         color: '#111',
         margin: 0,
@@ -99,59 +90,125 @@ function InfixDisplay({
         letterSpacing: '0.02em',
       }}
     >
-      {infix.slice(0, idx)}
-      <mark
-        style={{
-          background: '#fef08a',
-          padding: '0 2px',
-          borderRadius: 2,
-          transition: 'background 0.5s',
-        }}
-      >
-        {infix.slice(idx, idx + highlight.length)}
-      </mark>
-      {infix.slice(idx + highlight.length)}
+      {segments.map((seg, i) => (
+        <span
+          key={i}
+          style={{
+            background: seg.color ?? undefined,
+            padding: seg.color ? '2px 1px' : undefined,
+            borderRadius: seg.color ? 3 : undefined,
+          }}
+        >
+          {seg.text}
+        </span>
+      ))}
     </p>
   )
+}
+
+function renderSegmentsWithHighlight(
+  segments: ColoredSegment[],
+  highlight: string
+): React.ReactNode[] {
+  // Flatten segments to find highlight position
+  const nodes: React.ReactNode[] = []
+  let charIndex = 0
+  const fullText = segments.map((s) => s.text).join('')
+  const hlStart = fullText.indexOf(highlight)
+  const hlEnd = hlStart + highlight.length
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]
+    const segStart = charIndex
+    const segEnd = charIndex + seg.text.length
+
+    if (segEnd <= hlStart || segStart >= hlEnd) {
+      // No overlap with highlight
+      nodes.push(
+        <span
+          key={i}
+          style={{
+            background: seg.color ?? undefined,
+            padding: seg.color ? '2px 1px' : undefined,
+            borderRadius: seg.color ? 3 : undefined,
+          }}
+        >
+          {seg.text}
+        </span>
+      )
+    } else {
+      // Partial or full overlap with highlight
+      const overlapStart = Math.max(segStart, hlStart) - segStart
+      const overlapEnd = Math.min(segEnd, hlEnd) - segStart
+
+      if (overlapStart > 0) {
+        nodes.push(
+          <span key={`${i}-pre`} style={{ background: seg.color ?? undefined, padding: seg.color ? '2px 1px' : undefined, borderRadius: seg.color ? 3 : undefined }}>
+            {seg.text.slice(0, overlapStart)}
+          </span>
+        )
+      }
+      nodes.push(
+        <mark
+          key={`${i}-hl`}
+          style={{
+            background: '#fef08a',
+            padding: '0 2px',
+            borderRadius: 2,
+            transition: 'background 0.5s',
+          }}
+        >
+          {seg.text.slice(overlapStart, overlapEnd)}
+        </mark>
+      )
+      if (overlapEnd < seg.text.length) {
+        nodes.push(
+          <span key={`${i}-post`} style={{ background: seg.color ?? undefined, padding: seg.color ? '2px 1px' : undefined, borderRadius: seg.color ? 3 : undefined }}>
+            {seg.text.slice(overlapEnd)}
+          </span>
+        )
+      }
+    }
+    charIndex += seg.text.length
+  }
+  return nodes
 }
 
 // ---------------------------------------------------------------------------
 // Main App
 // ---------------------------------------------------------------------------
+function buildTree(puzzleIndex: number): GameNode {
+  const puzzle = PUZZLES[puzzleIndex]
+  const ast = parseExpression(puzzle.expression)
+  return mathToGameTree(ast, puzzle.atoms)
+}
+
 export default function App() {
   const [puzzleIndex, setPuzzleIndex] = useState(0)
-  const [tree, setTree] = useState<MathNode>(() =>
-    parseExpression(PUZZLES[0].expression)
-  )
-  const [selectedNode, setSelectedNode] = useState<MathNode | null>(null)
+  const [tree, setTree] = useState<GameNode>(() => buildTree(0))
+  const [selectedNode, setSelectedNode] = useState<GameNode | null>(null)
   const [tooltipMsg, setTooltipMsg] = useState<string | null>(null)
   const [hintVisible, setHintVisible] = useState(true)
   const [hintOpacity, setHintOpacity] = useState(1)
   const [highlightValue, setHighlightValue] = useState<string | null>(null)
   const [completedPuzzles, setCompletedPuzzles] = useState<Set<number>>(new Set())
-  const [evaluatedNode, setEvaluatedNode] = useState<MathNode | null>(null)
+  const [evaluatedNode, setEvaluatedNode] = useState<GameNode | null>(null)
   const [showComplete, setShowComplete] = useState(false)
+  const [hintNodes, setHintNodes] = useState<Set<GameNode>>(new Set())
 
-  const isDone = tree.type === 'ConstantNode'
-  const infix = treeToInfix(tree)
+  const isDone = findAnyApplicableNode(tree) === null
+  const segments = treeToColoredInfix(tree)
+  const rule = selectedNode?.type === 'operator' ? getApplicableRule(selectedNode) : null
+  const evaluateLabel = rule ? rule.label(selectedNode as GameOperator) : null
 
-  const evaluateLabel =
-    selectedNode && canEvaluate(selectedNode)
-      ? (() => {
-          const op = selectedNode as OperatorNode
-          const [left, right] = op.args as ConstantNode[]
-          const opSymbol = op.op === '*' ? '×' : op.op
-          return `Evaluate: ${left.value} ${opSymbol} ${right.value}`
-        })()
-      : null
-
-  function handleNodeClick(node: MathNode) {
-    if (node.type === 'ConstantNode') return
-
+  function handleNodeClick(node: GameNode) {
+    if (node.type === 'leaf') return
     setTooltipMsg(null)
+    setHintNodes(new Set())
 
-    if (!canEvaluate(node)) {
-      setTooltipMsg('Simplify the parts inside the brackets first.')
+    const applicable = getApplicableRule(node)
+    if (!applicable) {
+      setTooltipMsg('No rule applies here yet.')
       setSelectedNode(null)
       return
     }
@@ -160,17 +217,17 @@ export default function App() {
   }
 
   function handleApply() {
-    if (!selectedNode || !canEvaluate(selectedNode)) return
+    if (!selectedNode || selectedNode.type !== 'operator' || !rule) return
 
-    const result = evaluateArithmetic(selectedNode as OperatorNode)
-    const resultStr = result.toString()
-    const { newTree, resultNode } = applyNode(tree, selectedNode)
+    const { newTree, resultNode } = rule.apply(tree, selectedNode as GameOperator)
+    const resultExpr = resultNode.type === 'leaf' ? resultNode.expression : null
 
     setTree(newTree)
     setSelectedNode(null)
     setEvaluatedNode(resultNode)
-    setHighlightValue(resultStr)
+    setHighlightValue(resultExpr)
     setTooltipMsg(null)
+    setHintNodes(new Set())
 
     if (hintVisible) {
       setHintOpacity(0)
@@ -192,15 +249,16 @@ export default function App() {
     }
     const nextIndex = puzzleIndex + 1
     setPuzzleIndex(nextIndex)
-    setTree(parseExpression(PUZZLES[nextIndex].expression))
+    setTree(buildTree(nextIndex))
     setSelectedNode(null)
     setTooltipMsg(null)
     setHighlightValue(null)
+    setHintNodes(new Set())
   }
 
   function handlePlayAgain() {
     setPuzzleIndex(0)
-    setTree(parseExpression(PUZZLES[0].expression))
+    setTree(buildTree(0))
     setSelectedNode(null)
     setTooltipMsg(null)
     setHighlightValue(null)
@@ -209,7 +267,16 @@ export default function App() {
     setShowComplete(false)
     setHintVisible(true)
     setHintOpacity(1)
+    setHintNodes(new Set())
   }
+
+  const handleHint = useCallback(() => {
+    const applicable = findAllApplicableNodes(tree)
+    const nodeSet = new Set<GameNode>(applicable)
+    setHintNodes(nodeSet)
+    // Flash for 400ms then clear
+    setTimeout(() => setHintNodes(new Set()), 400)
+  }, [tree])
 
   // Clear tooltip when clicking elsewhere
   useEffect(() => {
@@ -238,7 +305,7 @@ export default function App() {
           You did it!
         </h1>
         <p style={{ fontSize: 18, color: '#6b7280', margin: '0 0 32px', textAlign: 'center' }}>
-          All 5 puzzles solved. You're an algebra whiz!
+          All {PUZZLES.length} puzzles solved. You're an algebra whiz!
         </p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 40 }}>
           {Array.from({ length: PUZZLES.length }, (_, i) => (
@@ -292,22 +359,57 @@ export default function App() {
         fontFamily: 'system-ui, sans-serif',
       }}
     >
-      {/* Header */}
-      <div style={{ marginBottom: 8 }}>
+      {/* Header: progress + hint */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
         <ProgressDots
           current={puzzleIndex}
           total={PUZZLES.length}
           completed={completedPuzzles}
         />
+        {!isDone && (
+          <button
+            onClick={handleHint}
+            style={{
+              padding: '4px 14px',
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: 'system-ui, sans-serif',
+              background: '#e5e7eb',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: 12,
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              ;(e.target as HTMLButtonElement).style.background = '#d1d5db'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.target as HTMLButtonElement).style.background = '#e5e7eb'
+            }}
+          >
+            Hint
+          </button>
+        )}
       </div>
 
+      {/* Lesson text */}
+      <p
+        style={{
+          fontSize: 14,
+          color: '#6b7280',
+          margin: '4px 0 8px',
+        }}
+      >
+        {PUZZLES[puzzleIndex].lesson}
+      </p>
+
       {/* First-use hint */}
-      {hintVisible && (
+      {hintVisible && puzzleIndex === 0 && (
         <p
           style={{
-            fontSize: 14,
+            fontSize: 13,
             color: '#9ca3af',
-            margin: '8px 0 0',
+            margin: '0 0 4px',
             opacity: hintOpacity,
             transition: 'opacity 0.3s',
             pointerEvents: 'none',
@@ -317,17 +419,34 @@ export default function App() {
         </p>
       )}
 
+      {/* Color-coded infix (ABOVE tree per design review) */}
+      <div
+        data-testid="infix-display"
+        style={{
+          marginBottom: 8,
+          padding: '10px 24px',
+          background: '#fff',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          minWidth: 200,
+          textAlign: 'center',
+        }}
+      >
+        <ColoredInfixDisplay segments={segments} highlightValue={highlightValue} />
+      </div>
+
       {/* Tree */}
-      <div style={{ marginTop: 16, width: '100%', maxWidth: 800 }}>
+      <div style={{ width: '100%', maxWidth: 800 }}>
         <TreeView
           tree={tree}
           selectedNode={selectedNode}
           evaluatedNode={evaluatedNode}
+          hintNodes={hintNodes}
           onNodeClick={handleNodeClick}
         />
       </div>
 
-      {/* Evaluate label + Apply button */}
+      {/* Rule label + Apply button */}
       <div
         style={{
           minHeight: 60,
@@ -355,7 +474,7 @@ export default function App() {
             {tooltipMsg}
           </p>
         )}
-        {selectedNode && canEvaluate(selectedNode) && (
+        {selectedNode && rule && (
           <button
             onClick={handleApply}
             style={{
@@ -405,22 +524,6 @@ export default function App() {
             Done! → Next puzzle
           </button>
         )}
-      </div>
-
-      {/* Infix form */}
-      <div
-        data-testid="infix-display"
-        style={{
-          marginTop: 12,
-          padding: '12px 24px',
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 8,
-          minWidth: 200,
-          textAlign: 'center',
-        }}
-      >
-        <InfixDisplay infix={infix} highlight={highlightValue} />
       </div>
     </div>
   )
