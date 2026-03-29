@@ -1,11 +1,12 @@
-import type { MathNode, OperatorNode, ConstantNode } from 'mathjs'
-import { layoutTree, getSubtreeNodes } from '../lib/treeOps'
+import type { GameNode, ExpressionLeaf, GameOperator, LayoutNode } from '../lib/treeOps'
+import { layoutTree, getSubtreeNodes, getDepthColor } from '../lib/treeOps'
 
 interface TreeViewProps {
-  tree: MathNode
-  selectedNode: MathNode | null
-  evaluatedNode: MathNode | null
-  onNodeClick: (node: MathNode) => void
+  tree: GameNode
+  selectedNode: GameNode | null
+  evaluatedNode: GameNode | null
+  hintNodes: Set<GameNode>
+  onNodeClick: (node: GameNode) => void
 }
 
 const OFFSET_X = 400
@@ -13,28 +14,47 @@ const OFFSET_Y = 60
 const SVG_WIDTH = 800
 const SVG_HEIGHT = 420
 
-export function TreeView({ tree, selectedNode, evaluatedNode, onNodeClick }: TreeViewProps) {
+function leafWidth(expression: string): number {
+  // Approximate: 9px per character at 16px font, plus 16px padding
+  return Math.max(40, expression.length * 9 + 16)
+}
+
+function isNumericExpression(leaf: ExpressionLeaf): boolean {
+  return leaf.ast.type === 'ConstantNode'
+}
+
+export function TreeView({
+  tree,
+  selectedNode,
+  evaluatedNode,
+  hintNodes,
+  onNodeClick,
+}: TreeViewProps) {
   const layoutNodes = layoutTree(tree)
-  const subtreeNodes = selectedNode ? getSubtreeNodes(selectedNode) : new Set<MathNode>()
+  const subtreeNodes = selectedNode ? getSubtreeNodes(selectedNode) : new Set<GameNode>()
 
   return (
     <svg
-      width={SVG_WIDTH}
-      height={SVG_HEIGHT}
+      width="100%"
+      height="auto"
       viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-      style={{ display: 'block', margin: '0 auto' }}
+      style={{ display: 'block', margin: '0 auto', maxWidth: SVG_WIDTH }}
       aria-label="Expression tree"
     >
-      {/* Edges — drawn before nodes so nodes render on top */}
-      {layoutNodes.map(({ node, x, y }) => {
-        if (node.type !== 'OperatorNode') return null
-        const op = node as OperatorNode
-        return op.args.map((childArg) => {
-          const childLayout = layoutNodes.find((ln) => ln.node === childArg)
+      {/* Edges */}
+      {layoutNodes.map(({ node, x, y }: LayoutNode) => {
+        if (node.type !== 'operator') return null
+        const op = node as GameOperator
+        const children = [
+          { child: op.left, key: 'L' },
+          { child: op.right, key: 'R' },
+        ]
+        return children.map(({ child, key }) => {
+          const childLayout = layoutNodes.find((ln: LayoutNode) => ln.node === child)
           if (!childLayout) return null
           return (
             <line
-              key={`edge-${x}-${y}-${childLayout.x}-${childLayout.y}`}
+              key={`edge-${x}-${y}-${key}`}
               x1={x + OFFSET_X}
               y1={y + OFFSET_Y}
               x2={childLayout.x + OFFSET_X}
@@ -47,15 +67,17 @@ export function TreeView({ tree, selectedNode, evaluatedNode, onNodeClick }: Tre
       })}
 
       {/* Nodes */}
-      {layoutNodes.map(({ node, x, y }) => {
+      {layoutNodes.map(({ node, x, y, depth }: LayoutNode) => {
         const cx = x + OFFSET_X
         const cy = y + OFFSET_Y
         const isSelected = node === selectedNode
         const isInSubtree = subtreeNodes.has(node) && node !== selectedNode
+        const isEvaluated = node === evaluatedNode
+        const isHinted = hintNodes.has(node)
+        const depthColor = getDepthColor(depth)
 
-        if (node.type === 'OperatorNode') {
-          const op = node as OperatorNode
-          const label = op.op === '*' ? '×' : op.op
+        if (node.type === 'operator') {
+          const label = node.op === '*' ? '×' : node.op
           return (
             <g
               key={`node-op-${x}-${y}`}
@@ -68,10 +90,29 @@ export function TreeView({ tree, selectedNode, evaluatedNode, onNodeClick }: Tre
                 cx={cx}
                 cy={cy}
                 r={20}
-                fill={isSelected ? '#dbeafe' : '#e0e0e0'}
-                stroke={isSelected ? '#2563eb' : isInSubtree ? '#94a3b8' : '#333'}
-                strokeWidth={isSelected ? 2.5 : isInSubtree ? 1.5 : 1.5}
-                strokeDasharray={isInSubtree ? '4 2' : undefined}
+                fill={
+                  isHinted
+                    ? '#fbbf24'
+                    : isEvaluated
+                      ? '#16a34a'
+                      : isSelected
+                        ? '#e5e7eb'
+                        : '#e0e0e0'
+                }
+                stroke={
+                  isSelected
+                    ? '#374151'
+                    : isEvaluated
+                      ? '#15803d'
+                      : isInSubtree
+                        ? depthColor
+                        : '#333'
+                }
+                strokeWidth={isSelected ? 2.5 : 1.5}
+                strokeDasharray={isInSubtree && !isSelected ? '4 2' : undefined}
+                style={{
+                  transition: 'fill 0.2s',
+                }}
               />
               <text
                 x={cx}
@@ -81,6 +122,7 @@ export function TreeView({ tree, selectedNode, evaluatedNode, onNodeClick }: Tre
                 fontSize={16}
                 fontFamily="system-ui, sans-serif"
                 fontWeight="500"
+                fill={isEvaluated ? '#fff' : '#111'}
                 style={{ pointerEvents: 'none', userSelect: 'none' }}
               >
                 {label}
@@ -89,44 +131,59 @@ export function TreeView({ tree, selectedNode, evaluatedNode, onNodeClick }: Tre
           )
         }
 
-        if (node.type === 'ConstantNode') {
-          const val = String((node as ConstantNode).value)
-          const isEvaluated = node === evaluatedNode
-          return (
-            <g
-              key={`node-const-${x}-${y}`}
-              style={{ cursor: 'default' }}
-              aria-label={`Number ${val}`}
-            >
-              <rect
-                x={cx - 20}
-                y={cy - 15}
-                width={40}
-                height={30}
-                fill={isEvaluated ? '#16a34a' : isInSubtree ? '#f0f9ff' : '#fff'}
-                stroke={isEvaluated ? '#15803d' : isInSubtree ? '#94a3b8' : '#333'}
-                strokeWidth={1.5}
-                strokeDasharray={isInSubtree ? '4 2' : undefined}
-                rx={3}
-                style={{ transition: 'fill 0.2s' }}
-              />
-              <text
-                x={cx}
-                y={cy}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={16}
-                fontFamily="system-ui, sans-serif"
-                fill={isEvaluated ? '#fff' : '#111'}
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-              >
-                {val}
-              </text>
-            </g>
-          )
-        }
+        // ExpressionLeaf
+        const leaf = node as ExpressionLeaf
+        const w = leafWidth(leaf.expression)
+        const isVariable = !isNumericExpression(leaf)
 
-        return null
+        return (
+          <g
+            key={`node-leaf-${x}-${y}`}
+            style={{ cursor: 'default' }}
+            aria-label={`${isVariable ? 'Term' : 'Number'} ${leaf.expression}`}
+          >
+            <rect
+              x={cx - w / 2}
+              y={cy - 15}
+              width={w}
+              height={30}
+              fill={
+                isEvaluated
+                  ? '#16a34a'
+                  : isInSubtree
+                    ? '#f0f9ff'
+                    : isVariable
+                      ? '#fef3c7'
+                      : '#fff'
+              }
+              stroke={
+                isEvaluated
+                  ? '#15803d'
+                  : isInSubtree
+                    ? depthColor
+                    : isVariable
+                      ? '#d97706'
+                      : '#333'
+              }
+              strokeWidth={1.5}
+              strokeDasharray={isInSubtree ? '4 2' : undefined}
+              rx={4}
+              style={{ transition: 'fill 0.2s' }}
+            />
+            <text
+              x={cx}
+              y={cy}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={16}
+              fontFamily="system-ui, sans-serif"
+              fill={isEvaluated ? '#fff' : '#111'}
+              style={{ pointerEvents: 'none', userSelect: 'none' }}
+            >
+              {leaf.expression}
+            </text>
+          </g>
+        )
       })}
     </svg>
   )
