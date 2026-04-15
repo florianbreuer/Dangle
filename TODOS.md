@@ -123,3 +123,49 @@
 **Depends on:** v2 scope milestone (design system + polish pass).
 
 ---
+
+## v4: Puzzle verification tool (BFS explorer)
+
+**What:** A script/test that BFS-explores all possible rule applications from a puzzle's starting tree and verifies that all valid paths reach the target (for transform puzzles) or a terminal state (for simplify puzzles).
+
+**Why:** With commutative and associative rules creating exponentially many valid orderings, hand-verifying that every path reaches the goal becomes impractical. This prevents shipping puzzles that are unsolvable or have unexpected intermediate states.
+
+**Pros:** Catches puzzle authoring errors automatically. Can also compute optimal step count for star ratings (future feature). Runs as a test or CI check.
+
+**Cons:** BFS on large trees with structural rules could be expensive. Needs state deduplication (canonicalization) to avoid infinite loops from commute/associate cycles.
+
+**Context:** Surfaced by outside voice in v3 CEO review. Not blocking for v3 (puzzles can be hand-tested), but becomes essential as puzzle count grows past 40.
+
+**Effort:** S (human: ~3 hours / CC: ~15 min) | **Priority:** P2 | **Depends on:** v3 rule implementation + canonicalize()
+
+---
+
+## v4: Generalize Rule interface to GameNode
+
+**What:** Change `Rule.canApply(node: GameOperator)` to `Rule.canApply(node: GameNode)` so leaf-level operations (like UNPACK) can participate in the standard rule dispatch instead of being special-cased in the click handler.
+
+**Why:** v3 implements UNPACK as a special case outside the RULES array because the interface requires GameOperator. This creates a parallel code path that's harder to test and maintain. Generalizing the interface eliminates the special case.
+
+**Pros:** Cleaner architecture. Enables future leaf-level operations (e.g., variable substitution, leaf editing) to use the same dispatch. One code path for all rules.
+
+**Cons:** Minor. All existing rules need their type signatures updated (GameOperator -> GameNode with a type guard inside canApply). ~10 lines changed per rule.
+
+**Context:** Surfaced in v3 CEO review Section 10 (long-term trajectory). The UNPACK special case is acceptable technical debt for v3 but should not proliferate.
+
+**Effort:** S (human: ~1 hour / CC: ~5 min) | **Priority:** P3 | **Depends on:** v3 UNPACK implementation
+
+---
+
+## v4: Variable substitution (plug-in values)
+
+**What:** Click a variable leaf, enter a number, and the tree replaces every instance of that variable with the number. Then evaluate numerically to verify algebraic manipulations.
+
+**Why:** Lets kids check their own work: "I simplified 2(x+3) to 2x+6. Let me plug in x=5 and see if both give 16." Bridges symbolic and numeric understanding. Builds intuition that algebra is about generalizing arithmetic.
+
+**Pros:** Powerful self-checking mechanism. Pedagogically unique — no other math app lets you verify algebra this way. Reuses existing EVALUATE rule for numeric computation after substitution.
+
+**Cons:** Adds text input UI (different from click-based interaction). Needs variable tracking across the tree, including inside packed leaves (e.g., "3x" contains x). Edge cases: what if x appears in multiple packed forms?
+
+**Context:** Proposed in v3 CEO review cherry-pick ceremony, deferred because it adds a new interaction pattern (text input) that's orthogonal to the rule-based manipulation focus of v3.
+
+**Effort:** M (human: ~1 day / CC: ~20 min) | **Priority:** P2 | **Depends on:** v3 rule set + UI

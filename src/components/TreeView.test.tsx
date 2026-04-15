@@ -27,7 +27,7 @@ describe('TreeView', () => {
     expect(container.querySelectorAll('rect')).toHaveLength(3)
   })
 
-  it('calls onNodeClick with the operator node when a circle is clicked', () => {
+  it('calls onNodeClick with the operator node and event when a circle is clicked', () => {
     const tree = build('2 + 3', ['2', '3'])
     const onNodeClick = vi.fn()
     const { container } = render(
@@ -36,9 +36,11 @@ describe('TreeView', () => {
     const circle = container.querySelector('circle')!
     fireEvent.click(circle)
     expect(onNodeClick).toHaveBeenCalledTimes(1)
+    expect(onNodeClick.mock.calls[0][0]).toBe(tree) // node
+    expect(onNodeClick.mock.calls[0][1]).toBeDefined() // event
   })
 
-  it('does not call onNodeClick when a leaf rect is clicked', () => {
+  it('calls onNodeClick when a leaf rect is clicked', () => {
     const tree = build('2 + 3', ['2', '3'])
     const onNodeClick = vi.fn()
     const { container } = render(
@@ -46,7 +48,7 @@ describe('TreeView', () => {
     )
     const rect = container.querySelector('rect')!
     fireEvent.click(rect)
-    expect(onNodeClick).not.toHaveBeenCalled()
+    expect(onNodeClick).toHaveBeenCalledTimes(1)
   })
 
   it('applies selected styles (neutral gray) when selectedNode matches root', () => {

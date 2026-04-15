@@ -5,12 +5,14 @@ import {
   mathToGameTree,
   treeToInfix,
   treeToColoredInfix,
-  getApplicableRule,
-  findAllApplicableNodes,
-  findAnyApplicableNode,
   layoutTree,
   getSubtreeNodes,
 } from './treeOps'
+import {
+  getApplicableRule,
+  findAllApplicableNodes,
+  findAnyApplicableNode,
+} from './rules'
 
 // Helper: build a GameNode tree from expression + atoms
 function build(expr: string, atoms: string[]): GameNode {
@@ -116,7 +118,7 @@ describe('getApplicableRule', () => {
     expect(rule!.name).toBe('Distribute')
   })
 
-  it('returns null for GameOp(+, Leaf(3x), Leaf(6)) — no rule applies', () => {
+  it('returns FACTOR for GameOp(+, Leaf(3x), Leaf(6)) — GCD(3,6)=3', () => {
     const tree: GameOperator = {
       type: 'operator',
       op: '+',
@@ -124,7 +126,8 @@ describe('getApplicableRule', () => {
       right: { type: 'leaf', expression: '6', ast: parseExpression('6') },
     }
     const rule = getApplicableRule(tree)
-    expect(rule).toBeNull()
+    expect(rule).not.toBeNull()
+    expect(rule!.name).toBe('Factor')
   })
 
   it('returns null for a leaf node', () => {
@@ -343,12 +346,13 @@ describe('applicableNode helpers', () => {
     expect(findAnyApplicableNode(tree)).toBeNull()
   })
 
-  it('findAnyApplicableNode returns null on no-rule tree', () => {
+  it('findAnyApplicableNode returns null on a truly no-rule tree', () => {
+    // 3x + 7: GCD(3,7)=1, different types, no rule applies
     const tree: GameOperator = {
       type: 'operator',
       op: '+',
       left: { type: 'leaf', expression: '3x', ast: parseExpression('3*x') },
-      right: { type: 'leaf', expression: '6', ast: parseExpression('6') },
+      right: { type: 'leaf', expression: '7', ast: parseExpression('7') },
     }
     expect(findAnyApplicableNode(tree)).toBeNull()
   })

@@ -6,7 +6,8 @@ interface TreeViewProps {
   selectedNode: GameNode | null
   evaluatedNode: GameNode | null
   hintNodes: Set<GameNode>
-  onNodeClick: (node: GameNode) => void
+  onNodeClick: (node: GameNode, event: React.MouseEvent) => void
+  svgRef?: React.RefObject<SVGSVGElement>
 }
 
 const OFFSET_X = 400
@@ -15,7 +16,6 @@ const SVG_WIDTH = 800
 const SVG_HEIGHT = 420
 
 function leafWidth(expression: string): number {
-  // Approximate: 9px per character at 16px font, plus 16px padding
   return Math.max(40, expression.length * 9 + 16)
 }
 
@@ -29,12 +29,14 @@ export function TreeView({
   evaluatedNode,
   hintNodes,
   onNodeClick,
+  svgRef,
 }: TreeViewProps) {
   const layoutNodes = layoutTree(tree)
   const subtreeNodes = selectedNode ? getSubtreeNodes(selectedNode) : new Set<GameNode>()
 
   return (
     <svg
+      ref={svgRef}
       width="100%"
       height="auto"
       viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
@@ -81,10 +83,12 @@ export function TreeView({
           return (
             <g
               key={`node-op-${x}-${y}`}
-              onClick={() => onNodeClick(node)}
+              onClick={(e) => onNodeClick(node, e)}
               style={{ cursor: 'pointer' }}
               role="button"
               aria-label={`Operator ${label}`}
+              data-node-x={cx}
+              data-node-y={cy}
             >
               <circle
                 cx={cx}
@@ -139,8 +143,11 @@ export function TreeView({
         return (
           <g
             key={`node-leaf-${x}-${y}`}
-            style={{ cursor: 'default' }}
+            onClick={(e) => onNodeClick(node, e)}
+            style={{ cursor: 'pointer' }}
             aria-label={`${isVariable ? 'Term' : 'Number'} ${leaf.expression}`}
+            data-node-x={cx}
+            data-node-y={cy}
           >
             <rect
               x={cx - w / 2}
@@ -150,22 +157,26 @@ export function TreeView({
               fill={
                 isEvaluated
                   ? '#16a34a'
-                  : isInSubtree
-                    ? '#f0f9ff'
-                    : isVariable
-                      ? '#fef3c7'
-                      : '#fff'
+                  : isSelected
+                    ? '#e5e7eb'
+                    : isInSubtree
+                      ? '#f0f9ff'
+                      : isVariable
+                        ? '#fef3c7'
+                        : '#fff'
               }
               stroke={
                 isEvaluated
                   ? '#15803d'
-                  : isInSubtree
-                    ? depthColor
-                    : isVariable
-                      ? '#d97706'
-                      : '#333'
+                  : isSelected
+                    ? '#374151'
+                    : isInSubtree
+                      ? depthColor
+                      : isVariable
+                        ? '#d97706'
+                        : '#333'
               }
-              strokeWidth={1.5}
+              strokeWidth={isSelected ? 2.5 : 1.5}
               strokeDasharray={isInSubtree ? '4 2' : undefined}
               rx={4}
               style={{ transition: 'fill 0.2s' }}
