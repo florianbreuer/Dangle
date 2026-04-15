@@ -546,10 +546,13 @@ export const RULES: Rule[] = [
 ]
 
 // Default rules for puzzles that don't specify enabledRules
-// COMMUTE and ASSOCIATE are excluded by default to prevent infinite loops
+// COMMUTE, ASSOCIATE, and FACTOR are excluded by default to prevent infinite loops
+// (FACTOR + DISTRIBUTE create cycles: distribute then factor undoes the work)
 const DEFAULT_ENABLED = RULES
-  .filter(r => r !== COMMUTE_RULE && r !== ASSOCIATE_LEFT_RULE && r !== ASSOCIATE_RIGHT_RULE)
+  .filter(r => r !== COMMUTE_RULE && r !== ASSOCIATE_LEFT_RULE && r !== ASSOCIATE_RIGHT_RULE && r !== FACTOR_RULE)
   .map(r => r.name)
+
+export const ALL_RULE_NAMES = RULES.map(r => r.name)
 
 function filterRules(enabledRules?: string[]): Rule[] {
   if (!enabledRules) return RULES.filter(r => DEFAULT_ENABLED.includes(r.name))

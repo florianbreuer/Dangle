@@ -118,14 +118,17 @@ describe('getApplicableRule', () => {
     expect(rule!.name).toBe('Distribute')
   })
 
-  it('returns FACTOR for GameOp(+, Leaf(3x), Leaf(6)) — GCD(3,6)=3', () => {
+  it('returns null for GameOp(+, Leaf(3x), Leaf(6)) — FACTOR excluded by default', () => {
     const tree: GameOperator = {
       type: 'operator',
       op: '+',
       left: { type: 'leaf', expression: '3x', ast: parseExpression('3*x') },
       right: { type: 'leaf', expression: '6', ast: parseExpression('6') },
     }
-    const rule = getApplicableRule(tree)
+    // FACTOR is excluded from defaults (would create cycle with DISTRIBUTE)
+    expect(getApplicableRule(tree)).toBeNull()
+    // But with Factor explicitly enabled, it applies
+    const rule = getApplicableRule(tree, ['Factor'])
     expect(rule).not.toBeNull()
     expect(rule!.name).toBe('Factor')
   })

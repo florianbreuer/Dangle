@@ -14,6 +14,7 @@ import {
   canUnpack,
   unpackLeaf,
   canonicalEqual,
+  ALL_RULE_NAMES,
 } from './lib/rules'
 import type { Rule } from './lib/rules'
 import { PUZZLES } from './puzzles'
@@ -372,7 +373,7 @@ export default function App() {
   const activeTree = mode === 'puzzles' ? tree : sandboxTree
   // enabledRules for current context
   const enabledRules = mode === 'sandbox'
-    ? undefined // all rules in sandbox
+    ? ALL_RULE_NAMES // all rules in sandbox
     : currentPuzzle.enabledRules
 
   // isDone logic
@@ -590,6 +591,22 @@ export default function App() {
     setTooltip(null)
   }
 
+  function handleSkip() {
+    if (puzzleIndex === PUZZLES.length - 1) {
+      setShowComplete(true)
+      return
+    }
+    const nextIndex = puzzleIndex + 1
+    setPuzzleIndex(nextIndex)
+    setTree(buildTree(nextIndex))
+    setSelectedNode(null)
+    setHighlightValue(null)
+    setHintNodes(new Set())
+    setUndoStack([])
+    setTooltip(null)
+    setEvaluatedNode(null)
+  }
+
   function handlePlayAgain() {
     setPuzzleIndex(0)
     setTree(buildTree(0))
@@ -712,7 +729,7 @@ export default function App() {
               margin: '0 0 8px',
               transition: 'color 0.3s',
             }}>
-              {isDone ? '✓ ' : ''}Target: {currentPuzzle.target}
+              {isDone ? '✓ ' : ''}Target: {currentPuzzle.target.replace(/\*/g, '×')}
             </p>
           )}
 
@@ -743,9 +760,9 @@ export default function App() {
             />
           )}
 
-          {/* Done / Next */}
+          {/* Done / Next / Skip */}
           <div style={{ minHeight: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginTop: 4 }}>
-            {isDone && (
+            {isDone ? (
               <button
                 onClick={handleNext}
                 style={{ padding: '8px 24px', fontSize: 15, fontWeight: 600, fontFamily: 'system-ui, sans-serif', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.15s' }}
@@ -753,6 +770,15 @@ export default function App() {
                 onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = '#2563eb' }}
               >
                 Done! → Next puzzle
+              </button>
+            ) : (
+              <button
+                onClick={handleSkip}
+                style={{ padding: '4px 14px', fontSize: 12, fontWeight: 400, fontFamily: 'system-ui, sans-serif', background: 'none', color: '#9ca3af', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.color = '#6b7280' }}
+                onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.color = '#9ca3af' }}
+              >
+                Skip this puzzle
               </button>
             )}
           </div>

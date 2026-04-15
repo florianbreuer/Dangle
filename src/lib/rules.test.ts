@@ -135,7 +135,7 @@ describe('ASSOCIATE rules', () => {
 describe('FACTOR rule', () => {
   it('factors 6x + 12 into 6*(x + 2)', () => {
     const tree = build('6 * x + 12', ['6x', '12']) as GameOperator
-    const rule = getApplicableRule(tree)
+    const rule = getApplicableRule(tree, ['Factor'])
     expect(rule).not.toBeNull()
     expect(rule!.name).toBe('Factor')
     const { newTree } = rule!.apply(tree, tree)
@@ -148,7 +148,7 @@ describe('FACTOR rule', () => {
 
   it('factors 4x + 8 pulling out 4', () => {
     const tree = build('4 * x + 8', ['4x', '8']) as GameOperator
-    const rule = getApplicableRule(tree)
+    const rule = getApplicableRule(tree, ['Factor'])
     expect(rule!.name).toBe('Factor')
     const { newTree } = rule!.apply(tree, tree)
     const root = newTree as GameOperator
@@ -181,7 +181,7 @@ describe('FACTOR rule', () => {
 
   it('label shows the GCD', () => {
     const tree = build('6 * x + 12', ['6x', '12']) as GameOperator
-    const rule = getApplicableRule(tree)!
+    const rule = getApplicableRule(tree, ['Factor'])!
     expect(rule.label(tree)).toContain('6')
   })
 })

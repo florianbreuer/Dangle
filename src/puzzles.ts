@@ -169,21 +169,33 @@ export const PUZZLES: Puzzle[] = [
     expression: '6 * x + 12',
     atoms: ['6x', '12'],
     lesson: 'Factor out the common number — what do 6 and 12 share?',
+    puzzleType: 'transform',
+    target: '6 * (x + 2)',
+    enabledRules: ['Factor'],
   },
   {
     expression: '4 * x + 8',
     atoms: ['4x', '8'],
     lesson: 'Factor: pull out 4 from both terms',
+    puzzleType: 'transform',
+    target: '4 * (x + 2)',
+    enabledRules: ['Factor'],
   },
   {
     expression: '9 * x + 3',
     atoms: ['9x', '3'],
     lesson: 'Factor: what number divides both 9 and 3?',
+    puzzleType: 'transform',
+    target: '3 * (3 * x + 1)',
+    enabledRules: ['Factor'],
   },
   {
     expression: '10 * x + 15',
     atoms: ['10x', '15'],
     lesson: 'Factor: find the greatest common factor of 10 and 15',
+    puzzleType: 'transform',
+    target: '5 * (2 * x + 3)',
+    enabledRules: ['Factor'],
   },
 
   // ── Group 9: Right distributive + mixed chains (3 puzzles) ──
